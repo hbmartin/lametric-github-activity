@@ -14,8 +14,10 @@ export const MAX_PIXEL = 8;
  *     where `value < difference / i` (float division), the weight is
  *     `MAX_PIXEL - i`. If none match (the max value), the weight stays at
  *     the default `MAX_PIXEL - 1` (7).
- *   - When every day is equal (`difference === 0`), `value < 0` is never
- *     true, so every weight is 7.
+ *   - When every day is equal but non-zero (`difference === 0`, `max > 0`),
+ *     `value < 0` is never true, so every weight is 7 (consistent activity).
+ *   - When there is no activity at all (`max === 0`), every weight is 0, so
+ *     the device shows an empty chart rather than a misleading full spike.
  *
  * An empty input returns an empty array, guarding the original code's crash
  * when it seeded `min` from `data[0]` of an empty set.
@@ -35,6 +37,10 @@ export function weightActivity(activity: number[]): number[] {
     if (value < min) {
       min = value;
     }
+  }
+
+  if (max === 0) {
+    return activity.map(() => 0);
   }
 
   const difference = max - min;

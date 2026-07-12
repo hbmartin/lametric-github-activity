@@ -143,8 +143,8 @@ async function fetchContributionDays(
 
   const days: number[] = [];
   for (const week of weeks) {
-    for (const day of week.contributionDays ?? []) {
-      days.push(day.contributionCount ?? 0);
+    for (const day of week?.contributionDays ?? []) {
+      days.push(day?.contributionCount ?? 0);
     }
   }
 
@@ -158,6 +158,10 @@ async function fetchContributionDays(
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
+      if (!env.GITHUB_TOKEN) {
+        return errorFrame("Missing GITHUB_TOKEN");
+      }
+
       const params = new URL(request.url).searchParams;
       const rawUsername = params.get("username");
       const username = (rawUsername ?? "").trim();

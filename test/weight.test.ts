@@ -7,9 +7,12 @@ describe("weightActivity", () => {
     expect(weightActivity([])).toEqual([]);
   });
 
-  it("maps all-equal input to all 7s (difference === 0 branch)", () => {
+  it("maps all-equal non-zero input to all 7s (difference === 0 branch)", () => {
     expect(weightActivity([3, 3, 3, 3])).toEqual([7, 7, 7, 7]);
-    expect(weightActivity([0, 0, 0, 0, 0, 0, 0])).toEqual([7, 7, 7, 7, 7, 7, 7]);
+  });
+
+  it("maps all-zero input to all 0s (empty chart when there is no activity)", () => {
+    expect(weightActivity([0, 0, 0, 0, 0, 0, 0])).toEqual([0, 0, 0, 0, 0, 0, 0]);
   });
 
   it("maps a single value to [7]", () => {
@@ -33,7 +36,18 @@ describe("weightActivity", () => {
 });
 
 describe("worker error frames", () => {
-  const env: Env = { GITHUB_TOKEN: "" };
+  const env: Env = { GITHUB_TOKEN: "test-token" };
+
+  it("returns 'Missing GITHUB_TOKEN' when the secret is unset", async () => {
+    const res = await worker.fetch(
+      new Request("https://example.com/?username=someone"),
+      { GITHUB_TOKEN: "" },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe(
+      '{"frames":[{"index":0,"text":"Missing GITHUB_TOKEN","icon":"null"}]}',
+    );
+  });
 
   it("returns the exact 'Missing username argument' frame with HTTP 200", async () => {
     const res = await worker.fetch(new Request("https://example.com/"), env);
