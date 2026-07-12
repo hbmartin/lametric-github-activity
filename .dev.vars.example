@@ -1,0 +1,3 @@
+# Copy to .dev.vars (gitignored) for local `wrangler dev`.
+# Use a GitHub Personal Access Token with minimal scope (classic: read:user).
+GITHUB_TOKEN=ghp_replace_me

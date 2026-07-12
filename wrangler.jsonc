@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lametric-github-activity",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-11-01",
+  "observability": { "enabled": true }
+  // GITHUB_TOKEN is a Secret, not set here.
+  //   Production: `npx wrangler secret put GITHUB_TOKEN`
+  //   Local dev:  put it in .dev.vars (gitignored)
+}
