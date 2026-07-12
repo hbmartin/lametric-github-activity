@@ -31,18 +31,25 @@ const QUERY = `query userInfo($login: String!, $dateFrom: DateTime!, $dateTo: Da
     }
 }`;
 
+// Fields are modelled as nullable/optional because this is an external GraphQL
+// payload: on partial or error responses any of them can be absent or null.
+// This keeps the defensive optional chaining below meaningful to the type checker.
 interface ContributionDay {
-  contributionCount: number;
+  contributionCount?: number | null;
+}
+
+interface ContributionWeek {
+  contributionDays?: (ContributionDay | null)[] | null;
 }
 
 interface GraphQLResponse {
   data?: {
     user: {
-      contributionsCollection: {
-        contributionCalendar: {
-          weeks: { contributionDays: ContributionDay[] }[];
-        };
-      };
+      contributionsCollection?: {
+        contributionCalendar?: {
+          weeks?: (ContributionWeek | null)[] | null;
+        } | null;
+      } | null;
     } | null;
   };
   errors?: unknown[];
