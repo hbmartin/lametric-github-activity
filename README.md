@@ -12,6 +12,102 @@ The Worker always responds with `HTTP 200` and a valid `{"frames":[…]}` body. 
 (bad username, token problem, rate limit) it returns a readable text frame instead of an error,
 so the device never falls back to its blank "Notifications" placeholder.
 
+## Step-by-step setup (for beginners)
+
+Never deployed a Cloudflare Worker before? Follow these in order and you'll have the chart on
+your device in about 15 minutes. Experienced users can skip to the [Reference](#reference)
+sections below.
+
+### 1. Install the tools
+
+- Install **[Node.js](https://nodejs.org/)** version 20 or newer (this also installs `npm`).
+- Install **[Git](https://git-scm.com/downloads)** (used to download the code).
+
+Check both are ready by running these in a terminal — each should print a version number:
+
+```bash
+node --version
+git --version
+```
+
+### 2. Download the code
+
+```bash
+git clone https://github.com/hbmartin/lametric-github-activity.git
+cd lametric-github-activity
+npm install
+```
+
+### 3. Create a GitHub token
+
+1. Go to <https://github.com/settings/tokens> → **Generate new token** → **Generate new token (classic)**.
+2. Give it a note like `LaMetric`, pick an expiration.
+3. Under **Select scopes**, tick **only** `read:user` (contribution data is public, so nothing more is needed).
+4. Click **Generate token** and copy the value that starts with `ghp_`. You won't be able to see it again, so keep it somewhere safe for the next steps.
+
+### 4. Create a Cloudflare account and log in
+
+1. Sign up (free) at <https://dash.cloudflare.com/sign-up>.
+2. In your terminal, connect Wrangler (Cloudflare's CLI) to that account:
+
+```bash
+npx wrangler login
+```
+
+This opens your browser — click **Allow**, then return to the terminal.
+
+### 5. Deploy the Worker
+
+```bash
+npm run deploy
+```
+
+When it finishes it prints your public URL. Copy it — it looks like:
+
+```
+https://lametric-github-activity.<your-subdomain>.workers.dev
+```
+
+### 6. Give the Worker your GitHub token
+
+```bash
+npx wrangler secret put GITHUB_TOKEN
+```
+
+Paste the `ghp_…` token from step 3 when prompted and press Enter. The secret takes effect
+immediately — no need to redeploy. (Until you do this step, the Worker replies with
+`Missing GITHUB_TOKEN`, which is your hint that it's not set yet.)
+
+### 7. Test it in your browser
+
+Open this URL, replacing both placeholders with your subdomain and your GitHub username:
+
+```
+https://lametric-github-activity.<your-subdomain>.workers.dev/?username=YOUR_GITHUB_LOGIN
+```
+
+You should see something like `{"frames":[{"index":0,"chartData":[0,2,5,...]}]}`. If you see a
+short message instead (e.g. `User not found`), it's telling you exactly what to fix.
+
+### 8. Show it on your LaMetric
+
+1. Open the **LaMetric** app on your phone.
+2. Add the **My Data DIY** app to your clock (search the LaMetric app store inside the app).
+3. Set its request URL to the same URL you tested in step 7.
+4. Save. Your contribution chart appears on the device within a poll cycle (under a minute).
+
+### 9. (Optional) Auto-deploy whenever you change the code
+
+If you want every push to `master` to redeploy automatically, add two repository secrets on
+GitHub (**Settings → Secrets and variables → Actions**): `CLOUDFLARE_API_TOKEN` (create it from
+the Cloudflare dashboard → **My Profile → API Tokens → Edit Cloudflare Workers** template) and
+`CLOUDFLARE_ACCOUNT_ID` (shown on your Cloudflare **Workers** overview page). The included
+workflow does the rest.
+
+---
+
+## Reference
+
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) 20+
