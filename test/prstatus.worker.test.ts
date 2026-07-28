@@ -24,12 +24,17 @@ function searchPayload(states: (string | null)[]): string {
   });
 }
 
-/** Stub global fetch so the worker never hits the network. */
-function stubGitHub(body: string, init?: ResponseInit): void {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => new Response(body, init)),
-  );
+/** Stub global fetch so the worker never hits the network; returns the mock. */
+function stubGitHub(body: string, init?: ResponseInit) {
+  const mock = vi.fn(async (..._args: unknown[]) => new Response(body, init));
+  vi.stubGlobal("fetch", mock);
+  return mock;
+}
+
+/** Authorization header the worker sent to GitHub on its first fetch call. */
+function sentAuth(mock: ReturnType<typeof stubGitHub>): string | undefined {
+  const init = mock.mock.calls[0]?.[1] as RequestInit | undefined;
+  return (init?.headers as Record<string, string> | undefined)?.Authorization;
 }
 
 describe("worker pull-request mode", () => {
@@ -66,6 +71,8 @@ describe("worker pull-request mode", () => {
       env,
     );
     expect(res.status).toBe(200);
+    // Secret-based (no ?token=) responses are cacheable.
+    expect(res.headers.get("cache-control")).toBe("public, max-age=300");
     expect(await res.text()).toBe(
       '{"frames":[' +
         '{"index":0,"text":"4 PRs","icon":"i100"},' +
@@ -87,6 +94,37 @@ describe("worker pull-request mode", () => {
     expect(await res.text()).toBe(
       '{"frames":[{"index":0,"text":"No open PRs","icon":"i100"}]}',
     );
+  });
+
+  it("uses a per-request ?token= even when the secret is unset, and never caches it", async () => {
+    const mock = stubGitHub(searchPayload(["SUCCESS"]));
+    const res = await worker.fetch(
+      new Request(
+        "https://example.com/pull-requests?username=octocat&token=ghp_user",
+      ),
+      { GITHUB_TOKEN: "" },
+    );
+    expect(res.status).toBe(200);
+    // A token in the URL must not be stored in a shared cache.
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(sentAuth(mock)).toBe("Bearer ghp_user");
+    expect(await res.text()).toBe(
+      '{"frames":[' +
+        '{"index":0,"text":"1 PR","icon":"i100"},' +
+        '{"index":1,"text":"1 pass","icon":"i120"}' +
+        "]}",
+    );
+  });
+
+  it("prefers the ?token= over the deployment secret", async () => {
+    const mock = stubGitHub(searchPayload([]));
+    await worker.fetch(
+      new Request(
+        "https://example.com/pull-requests?username=octocat&token=ghp_user",
+      ),
+      { GITHUB_TOKEN: "ghp_secret" },
+    );
+    expect(sentAuth(mock)).toBe("Bearer ghp_user");
   });
 
   it("maps a rate-limited response to the shared error frame", async () => {

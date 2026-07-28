@@ -124,14 +124,22 @@ type PrFetchResult =
   | { ok: false; message: string };
 
 /**
+ * Cache-control for a success response. Token-bearing URLs (per-user `?token=`)
+ * must never land in a shared cache, so those are served `no-store`.
+ */
+function successCacheControl(cacheable: boolean): string {
+  return cacheable ? "public, max-age=300" : "no-store";
+}
+
+/**
  * Build a LaMetric success frame containing the chart data.
  * Shape preserved verbatim: {"frames":[{"index":0,"chartData":[...]}]}
  */
-function successFrame(chartData: number[]): Response {
+function successFrame(chartData: number[], cacheable: boolean): Response {
   return new Response(JSON.stringify({ frames: [{ index: 0, chartData }] }), {
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "cache-control": "public, max-age=300",
+      "cache-control": successCacheControl(cacheable),
     },
   });
 }
@@ -181,7 +189,10 @@ interface TextFrame {
  * frame per non-empty status bucket (passing / failing / pending / no-checks),
  * each an indicator icon plus its count. All frames cycle on the device.
  */
-function prStatusFrames(summary: PrStatusSummary): Response {
+function prStatusFrames(
+  summary: PrStatusSummary,
+  cacheable: boolean,
+): Response {
   const frames: TextFrame[] = [];
   const push = (text: string, icon: string): void => {
     frames.push({ index: frames.length, text, icon });
@@ -200,7 +211,7 @@ function prStatusFrames(summary: PrStatusSummary): Response {
   return new Response(JSON.stringify({ frames }), {
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "cache-control": "public, max-age=300",
+      "cache-control": successCacheControl(cacheable),
     },
   });
 }
@@ -330,11 +341,20 @@ async function fetchOpenPullRequests(
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
-      if (!env.GITHUB_TOKEN) {
+      const url = new URL(request.url);
+
+      // Token resolution. A per-user `?token=` (supplied by the LaMetric app
+      // config) takes precedence over the deployment-wide GITHUB_TOKEN secret,
+      // so one Worker can serve many installers. When the token came from the
+      // URL the response must never be cached in a shared cache.
+      const queryToken = (url.searchParams.get("token") ?? "").trim();
+      const token = queryToken || env.GITHUB_TOKEN;
+      const cacheable = queryToken === "";
+
+      if (!token) {
         return errorFrame("Missing GITHUB_TOKEN");
       }
 
-      const url = new URL(request.url);
       const rawUsername = url.searchParams.get("username");
       const username = (rawUsername ?? "").trim();
 
@@ -350,23 +370,20 @@ export default {
 
       // PR-status mode: aggregate CI/job status across the user's open PRs.
       if (url.pathname === "/pull-requests" || url.pathname === "/prs") {
-        const prResult = await fetchOpenPullRequests(
-          username,
-          env.GITHUB_TOKEN,
-        );
+        const prResult = await fetchOpenPullRequests(username, token);
         if (!prResult.ok) {
           return errorFrame(prResult.message);
         }
-        return prStatusFrames(summarizePrStatuses(prResult.prs));
+        return prStatusFrames(summarizePrStatuses(prResult.prs), cacheable);
       }
 
       // Default mode: contribution spike chart.
-      const result = await fetchContributionDays(username, env.GITHUB_TOKEN);
+      const result = await fetchContributionDays(username, token);
       if (!result.ok) {
         return errorFrame(result.message);
       }
 
-      return successFrame(weightActivity(result.days));
+      return successFrame(weightActivity(result.days), cacheable);
     } catch {
       // Last-resort guard: never surface a 500 to LaMetric.
       return errorFrame("Internal error");

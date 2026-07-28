@@ -128,6 +128,16 @@ workflow does the rest.
 Create a token at <https://github.com/settings/tokens>. One token is shared by both modes, so
 if you use the PR-status mode, give it the broader scope.
 
+The token can be supplied two ways:
+
+- **Worker secret (personal use):** `npx wrangler secret put GITHUB_TOKEN` — set once, never in a
+  URL. Installers then only provide `username`.
+- **Per-request `?token=` (shareable app):** pass `&token=<PAT>` on the poll URL. It overrides the
+  secret, so one deployment can serve many people, each with their own token. Token-bearing
+  responses are sent `Cache-Control: no-store`. Because the token rides in the URL, use a
+  read-only, minimally-scoped, short-lived token — see
+  [docs/lametric-developer-portal.md](docs/lametric-developer-portal.md).
+
 ## Setup
 
 ```bash
@@ -206,6 +216,9 @@ The device cycles through one frame per non-empty status bucket, most-severe fir
 When you have no open PRs it shows a single `No open PRs` frame. Each frame carries a status
 icon; the icon IDs are defined near the top of `src/index.ts` (`ICON_PASS`, `ICON_FAIL`, …) —
 swap them for whichever [LaMetric icons](https://developer.lametric.com/icons) you prefer.
+
+To publish this as a shareable LaMetric app where each installer enters their own username and
+token, see [docs/lametric-developer-portal.md](docs/lametric-developer-portal.md).
 
 ## Debug
 
