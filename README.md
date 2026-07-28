@@ -3,6 +3,10 @@
 Display the last ~36 days of your GitHub contributions as an 8-pixel spike chart on your
 LaMetric device.
 
+It also serves a second mode at `/pull-requests` that shows the aggregate CI/job status of
+every pull request you currently have **open** (merged, closed, and draft PRs are excluded).
+See [Pull request status](#pull-request-status) below.
+
 This is a single [Cloudflare Worker](https://developers.cloudflare.com/workers/): LaMetric
 polls the Worker URL, the Worker queries the [GitHub GraphQL API](https://docs.github.com/en/graphql)
 for your contribution calendar, and returns LaMetric-formatted frames. There is no PHP and no
@@ -42,7 +46,7 @@ npm install
 
 1. Go to <https://github.com/settings/tokens> → **Generate new token** → **Generate new token (classic)**.
 2. Give it a note like `LaMetric`, pick an expiration.
-3. Under **Select scopes**, tick **only** `read:user` (contribution data is public, so nothing more is needed).
+3. Under **Select scopes**, tick `read:user` (all the contribution chart needs). If you also want the [Pull request status](#pull-request-status) mode, additionally tick `repo` (to include private repos) or `public_repo` (public repos only).
 4. Click **Generate token** and copy the value that starts with `ghp_`. You won't be able to see it again, so keep it somewhere safe for the next steps.
 
 ### 4. Create a Cloudflare account and log in
@@ -114,11 +118,15 @@ workflow does the rest.
 - A [Cloudflare account](https://dash.cloudflare.com/sign-up) (Workers free tier is enough)
 - A GitHub Personal Access Token (see below)
 
-## GitHub token (minimal scope)
+## GitHub token scope
 
-Contribution-calendar data is public, so a **classic PAT with only the `read:user` scope** is
-sufficient. You do **not** need `repo` or `public_repo`. Create one at
-<https://github.com/settings/tokens>.
+- **Contribution chart (`/`):** contribution-calendar data is public, so a **classic PAT with
+  only the `read:user` scope** is sufficient.
+- **Pull request status (`/pull-requests`):** reading your PRs' check/status data needs the
+  classic **`repo`** scope (to include private repos) or **`public_repo`** (public repos only).
+
+Create a token at <https://github.com/settings/tokens>. One token is shared by both modes, so
+if you use the PR-status mode, give it the broader scope.
 
 ## Setup
 
@@ -142,7 +150,7 @@ npm install
 
 ```bash
 npm run dev        # wrangler dev on http://localhost:8787
-npm test           # vitest — weighting algorithm + error-frame shape
+npm test           # vitest — weighting algorithm, PR-status aggregation, frame shapes
 npm run typecheck  # tsc --noEmit
 ```
 
@@ -171,6 +179,33 @@ https://lametric-github-activity.<your-subdomain>.workers.dev/?username=YOUR_GIT
   to the URL above.
 - **Published app:** in the [LaMetric developer portal](https://developer.lametric.com), create
   an Indicator (Poll) app with a `username` text field and the same poll URL.
+
+## Pull request status
+
+A second mode summarises the CI/job status of every pull request you currently have **open**.
+It excludes merged, closed, and draft PRs (via the GitHub search qualifiers
+`is:pr is:open draft:false author:<you>`). Point a poll app at the `/pull-requests` path
+(`/prs` also works):
+
+```
+https://lametric-github-activity.<your-subdomain>.workers.dev/pull-requests?username=YOUR_GITHUB_LOGIN
+```
+
+Requires a token with `repo` or `public_repo` scope (see [GitHub token scope](#github-token-scope)).
+
+The device cycles through one frame per non-empty status bucket, most-severe first:
+
+| Frame | Meaning |
+| --- | --- |
+| `N PRs` | total open, non-draft PRs you authored |
+| `N fail` | PRs whose checks are failing/errored |
+| `N busy` | PRs whose checks are queued or running |
+| `N pass` | PRs whose checks all passed |
+| `N none` | PRs with no checks configured |
+
+When you have no open PRs it shows a single `No open PRs` frame. Each frame carries a status
+icon; the icon IDs are defined near the top of `src/index.ts` (`ICON_PASS`, `ICON_FAIL`, …) —
+swap them for whichever [LaMetric icons](https://developer.lametric.com/icons) you prefer.
 
 ## Debug
 
